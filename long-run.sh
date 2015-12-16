@@ -5,7 +5,9 @@
 bin_dir=../bin
 receiver_ip="100.64.0.1"
 source_ip="100.64.0.4"
-run_time=1000000 # in ms
+run_time=10000 # in ms
+on_duration=5000 # in ms
+off_duration=5000 # in ms
 
 output_file_name() {
 		if [[ $cc_type == "markovian" ]]; then
@@ -29,7 +31,10 @@ if [[ $1 == "run" ]]; then
 		trace_file=$3
 		min_delay=$4
 		output_directory=$5
-		delta_conf=$6 # If present
+		nsrc=`expr "$6" : '\(.*\):.*'`
+		traffic_type=`expr "$6" : '.*:\(.*\)'`
+		queue_length=$7
+		delta_conf=$8 # If present
 
 		if [[ -f $trace_file ]]; then
 				trace_uplink=$trace_file
@@ -46,32 +51,38 @@ if [[ $1 == "run" ]]; then
 				mkdir $output_directory
 		fi
 
+		if [[ $queue_length == "0" ]]; then
+				queue_length_params="--uplink-queue=infinite --downlink-queue=infinite"
+		else
+				queue_length_params="--uplink-queue=droptail --uplink-queue-args=\"bytes=$queue_length\" --downlink-queue=droptail --downlink-queue-args=\"bytes=$queue_length\""
+		fi
+
 		output_file_name # sets of_name and of_dir
 		if [[ ! -d $of_dir ]]; then
 				mkdir $of_dir
 		fi
 
 		if [[ $cc_type == "markovian" ]]; then
-				delta_conf=$6
+				delta_conf=$8
 				echo "Assuming receiver is available at $receiver_ip"
 
 				mm-delay $min_delay \
-						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink \
-						$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=markovian delta_conf=$delta_conf offduration=1 onduration=$run_time traffic_params=deterministic,num_cycles=1 \
+						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink $queue_length_params \
+						./run-genericcc-sender.sh "$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=markovian delta_conf=$delta_conf" $nsrc $traffic_type $run_time $on_duration $off_duration \
 						1> $of_name.stdout 2> $of_name.stderr
 
 		elif [[ $cc_type == "remy" ]]; then
-				rat_file=$6
+				rat_file=$8
 				echo "Assuming receiver is available at $receiver_ip"
 				mm-delay $min_delay \
-						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink \
-						$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=remy if=$rat_file offduration=1 onduration=$run_time traffic_params=deterministic,num_cycles=1 \
+						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink $queue_length_params \
+						./run-genericcc-sender.sh "$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=remy if=$rat_file" $nsrc $traffic_type $run_time $on_duration $off_duration\
 						1> $of_name.stdout 2> $of_name.stderr
 
 		elif [[ $cc_type == "sprout" ]]; then
 				echo "Assuming sprout server is available at $receiver_ip"
 				mm-delay $min_delay \
-						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink \
+						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink $queue_length_params \
 						$bin_dir/sproutbt2 $receiver_ip 60001 \
 						1> $of_name.stdout 2> $of_name.stderr & 
 				child_pid=$!
@@ -87,22 +98,15 @@ if [[ $1 == "run" ]]; then
 				#sudo sysctl -w net.ipv4.tcp_congestion_control=$cc_type
 				echo "Using default kernel TCP as root priviledges are required to change TCP"
 				mm-delay $min_delay \
-						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink \
-						$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=kernel offduration=1 onduration=$run_time traffic_params=deterministic,num_cycles=1 \
+						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink $queue_length_params \
+						./run-genericcc-sender.sh "$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=kernel offduration=1 onduration=$run_time traffic_params=deterministic,num_cycles=1" $nsrc $traffic_type $run_time $on_duration $off_duration \
 						1> $of_name.stdout 2> $of_name.stderr
 		elif [[ $cc_type == "pcc" ]]; then
 				echo "Assuming pcc receiver was run at $receiver_ip"
-				echo "export LD_LIBRARY_PATH=/home/venkat/Documents/Projects/Markovian/Misc/pcc/sender/src" >.pcc-client
-				echo "$bin_dir/appclient $receiver_ip 9000" >>.pcc-client
-				chmod 775 .pcc-client
 				mm-delay $min_delay \
-						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink \
-						./.pcc-client
+						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink $queue_length_params \
+						./run-pcc-sender.sh "$bin_dir/appclient $receiver_ip 9000" $nsrc $traffic_type $run_time $on_duration $off_duration
 						1> $of_name.stdout 2> $of_name.stderr
-				child_pid=$!
-				echo $child_pid
-				sleep $(( $run_time / 1000 + 35 ))
-				kill $child_pid
 		else
 				echo "Could not find cc_type '$cc_type'. It is either unsupported or not yet implemented"
 		fi
@@ -134,7 +138,7 @@ elif [[ $1 == "clean" ]]; then
 else
 		echo "Usage: long-run command [args]"
 		echo "  Commands:"
-		echo "    run - Run emulation. Usage: 'run cc_type trace_file min_delay output_directory [delta_conf|rat_file]'"
+		echo "    run - Run emulation. Usage: 'run cc_type trace_file min_delay output_directory nsrc:exponential|continuous queue_length [delta_conf|rat_file]'"
     echo "    graph - Graph results from directory. Usage: 'graph output_directory'"
     echo "    clean - Clean directory. Usage: 'clean output_directory'"
 		echo "  Explanation:"
@@ -142,4 +146,6 @@ else
 		echo "    trace_file: If found, used for both uplink and downlink, else filename.up and filename.down are used."
 		echo "    min_delay: Minimum delay in ms."
 		echo "    output_directory: Directory where both raw data and graphs are dumped."
+		echo "    nsrc: Number of senders + type of traffic. If exponential, predetermined exponential distribution will be used, else a predetermined continuous run will be used."
+		echo "    queue_length: Droptail queue length in bytes. If 0, infinite queue will be used."
 fi
