@@ -17,10 +17,11 @@ else
 		echo "Unidentified traffic_type. Control shouldn't reach here."
 fi
 run_str="$run_str $params"
+echo $run_str 
 
 for (( i=0; i < $nsrc; i++ )); do
 		$run_str &
 		pids="$pids $!"
 done
-sleep `expr $run_time / 1000 + 1`
+sleep `expr $run_time / 1000`
 kill $pids

@@ -16,7 +16,7 @@ output_file_name() {
 		elif [[ $cc_type == "remy" ]]; then
 				of_dir=$output_directory/remy # Not giving rat name as of now
 				of_name=$of_dir/remy
-		elif [[ $cc_type == "sprout" ]] || [ $cc_type == "pcc" ] || [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]]; then
+		elif [[ $cc_type == "sprout" ]] || [ $cc_type == "pcc" ] || [[ $cc_type == "pcp" ]] || [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]]; then
 				of_dir=$output_directory/$cc_type
 				of_name=$of_dir/$cc_type
 		else
@@ -66,6 +66,7 @@ if [[ $1 == "run" ]]; then
 				delta_conf=$8
 				echo "Assuming receiver is available at $receiver_ip"
 
+				export MIN_RTT=`awk -v min_delay=$min_delay 'END{print 2*min_delay;}' /dev/null`
 				mm-delay $min_delay \
 						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink $queue_length_params \
 						./run-genericcc-sender.sh "$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=markovian delta_conf=$delta_conf" $nsrc $traffic_type $run_time $on_duration $off_duration \
@@ -74,9 +75,10 @@ if [[ $1 == "run" ]]; then
 		elif [[ $cc_type == "remy" ]]; then
 				rat_file=$8
 				echo "Assuming receiver is available at $receiver_ip"
+				export MIN_RTT=1
 				mm-delay $min_delay \
 						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink $queue_length_params \
-						./run-genericcc-sender.sh "$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=remy if=$rat_file" $nsrc $traffic_type $run_time $on_duration $off_duration\
+						./run-genericcc-sender.sh "$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=remy if=$rat_file" $nsrc $traffic_type $run_time $on_duration $off_duration \
 						1> $of_name.stdout 2> $of_name.stderr
 
 		elif [[ $cc_type == "sprout" ]]; then
@@ -92,6 +94,13 @@ if [[ $1 == "run" ]]; then
 				# Remove the part where the link was doing nothing, waiting for sprout precomputation
 				awk -F ' ' 'BEGIN {x=0} {if(x==1 || ($1 == "#" && $2 != "base"))print $0; else {if($2=="+"){print "# base timestamp:", $1;print $0; x=1;}}}' $of_name.uplink >$of_name.uplink2
 				mv $of_name.uplink2 $of_name.uplink
+
+		elif [[ $cc_type == "pcp" ]]; then
+				echo "Assuming 'pcp-server' was run at $receiver_ip:8745"
+				mm-delay $min_delay \
+						mm-link $trace_uplink $trace_downlink --uplink-log $of_name.uplink --downlink-log $of_name.downlink $queue_length_params \
+						./run-pcc-sender.sh "$bin_dir/pcp $receiver_ip 8745 1000000000 1 0.00001 1" $nsrc $traffic_type $run_time $on_duration $off_duration
+				    > $of_name.stdout 2> $of_name.stderr
 
 		elif [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]]; then
 				echo "Assuming 'iperf -s' was run at $receiver_ip"
@@ -142,7 +151,7 @@ else
     echo "    graph - Graph results from directory. Usage: 'graph output_directory'"
     echo "    clean - Clean directory. Usage: 'clean output_directory'"
 		echo "  Explanation:"
-		echo "    cc_type: One of markovian, remy, sprout, pcc, cubic and reno."
+		echo "    cc_type: One of markovian, remy, sprout, pcc, pcp, cubic and reno."
 		echo "    trace_file: If found, used for both uplink and downlink, else filename.up and filename.down are used."
 		echo "    min_delay: Minimum delay in ms."
 		echo "    output_directory: Directory where both raw data and graphs are dumped."
