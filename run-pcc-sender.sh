@@ -12,14 +12,15 @@ echo $nsrc $traffic_type $run_time $on_duration $off_duration
 if [[ $traffic_type == "exponential" ]]; then
 		run_str="mm-onoff uplink $on_duration $off_duration $run_str"
 elif [[ $traffic_type == "continuous" ]]; then
-		run_str=$run_str # Do nothing
+		run_str="$run_str" # Do nothing
 else
 		echo "Unidentified traffic_type. Control shouldn't reach here."
 fi
 
-export LD_LIBRARY_PATH=/home/venkat/Documents/Projects/Markovian/Misc/pcc/sender/src
+export LD_LIBRARY_PATH=/home/venkat/Documents/Projects/Markovian/UDP/bin/pcc_sender
 
 for (( i=0; $i < $nsrc; i++ )); do
+		echo "$run_str $i"
 		$run_str &
 		pids="$pids $!"
 done

@@ -12,13 +12,13 @@ if [[ ! -d $output_directory ]]; then
 fi
 
 for delta_conf in "constant_delta:0.01" "constant_delta:0.1" "constant_delta:0.5" "constant_delta:1"; do
-		runstr="./long-run.sh run markovian $trace_file $min_delay $output_directory $nsrc:continuous $queue_length $delta_conf"
+		runstr="./long-run.sh run markovian $trace_file $min_delay 0 $output_directory $nsrc:continuous $queue_length $delta_conf"
 		echo $runstr
 		$runstr
 done
 
 for cc_type in "remy" "pcc" "cubic"; do
-		runstr="./long-run.sh run $cc_type $trace_file $min_delay $output_directory $nsrc:continuous $queue_length $rat_file"
+		runstr="./long-run.sh run $cc_type $trace_file $min_delay 0 $output_directory $nsrc:continuous $queue_length $rat_file"
 		echo $runstr
-		#$runstr
+		$runstr
 done
