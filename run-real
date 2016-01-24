@@ -1,0 +1,43 @@
+# To trace kernel connections, run `tcpdump tcp -lr -p Wifi/tcpdump.pcap &` 
+
+serverip=192.168.0.101
+sourceip=192.168.0.100
+output_directory=Wifi
+bin_dir=../bin
+trace_dir=~/traces
+
+if [[ ! -d $output_directory ]]; then
+		mkdir $output_directory
+fi
+
+if [[ $1 == "run" ]]; then
+		export MIN_RTT=10000
+
+		for (( i = 0; i < 100; i = i + 1 )); do
+				$bin_dir/sender serverip=192.168.0.101 sourceip=192.168.0.100 cctype=markovian delta_conf=constant_delta:0.1 offduration=1 onduration=10000 traffic_params=deterministic,num_cycles=1 >>$output_directory/Markovian0.1
+
+			  $bin_dir/sender serverip=192.168.0.101 sourceip=192.168.0.100 cctype=markovian delta_conf=constant_delta:1 offduration=1 onduration=10000 traffic_params=deterministic,num_cycles=1 >>$output_directory/Markovian1
+
+				$bin_dir/sender serverip=192.168.0.101 sourceip=192.168.0.100 offduration=1 onduration=10000 traffic_params=deterministic,num_cycles=1 cctype=remy if=rats/fig2-linkspeed/bigbertha-100x.dna.5 >>$output_directory/Remy
+
+				#mm-link ~/traces/trace-120Mbps ~/traces/trace-120Mbps --uplink-log $output_directory/pcc.uplink.tmp $bin_dir/appclient $serverip 9000 >>$output_directory/pcc.stderrout 2>/dev/null &
+				#sleep 10
+				#killall appclient
+				#mm-throughput-graph 100 $output_directory/pcc.stderrout >$output_directory/pcc.graph 2>>$output_directory/pcc.stats
+				#rm $output_directory/pcc.uplink.tmp
+
+				iperf -c $serverip -i 10 >>$output_directory/Kernel
+		done
+
+elif [[ $1 == "graph" ]]; then
+		for file in "Markovian1" "Markovian0.1" "Remy"; do
+				tpt=`grep ^[[:space:]]*Throughput $output_directory/$file | awk -F ' ' '{sum += $2} END{print sum/NR}'`
+				del=`grep ^[[:space:]]*Average\ Delay $output_directory/$file | awk -F ' ' '{sum += $3} END{print sum/NR}'`
+				echo "\"$file\" $tpt $del"
+		done
+
+		tcptrace -lr $output_directory >tcpdump.trace
+
+else
+		echo "Expected commang [run|graph]"
+fi
