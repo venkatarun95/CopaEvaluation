@@ -1,0 +1,78 @@
+#!/bin/bash
+
+resdir=VaryBW
+
+source utils
+
+if [[ $1 == "run" ]]; then
+		if [[ ! -d $resdir ]]; then
+				mkdir $resdir
+		fi
+
+		for trace in ~/traces/trace-*Mbps; do
+				for rat in rats/fig2-linkspeed/*.dna.*; do
+						rat_nice=`expr "$rat" : ".*/bigbertha-*\([^/]*\)"`
+						bw=`expr "$trace" : ".*/trace-\([0-9.]*\)Mbps"`
+						./long-run.sh run remy $trace 75 0 $resdir 2:exponential 0 $rat
+						if [[ -d $resdir/remy-$rat::$rtt ]]; then
+								mv $resdir/remy-$rat::$rtt $resdir/old-remy-$rat_nice::$bw
+								echo "Warning: directory '$resdir/remy-$rat::$rtt' already present"
+						fi
+						mv $resdir/remy $resdir/remy-$rat_nice::$bw
+				done
+		done
+
+elif [[ $1 == "graph" ]]; then
+		if [[ -d $resdir/graphdir ]]; then
+				trash $resdir/graphdir
+		fi
+		mkdir $resdir/graphdir
+
+		for file in $resdir/*; do
+				if [[ $file == *old* ]] || [[ $file == *graphdir ]]; then
+						continue
+				fi
+				nice_name=`expr "$file" : ".*/\([^/]*\)"`
+				protocol=`expr "$nice_name" : "\([^-]*\)\-.*"`
+				protocol_long=`expr "$nice_name" : "\([^:]*\)::.*"`
+				bw=`expr "$nice_name" : ".*::\([0-9]*\)"`
+
+				read_genericcc_output $file/$protocol.stdout
+				utilization=`awk -v tpt=$throughput -v bw=$bw 'BEGIN{print 8*tpt/(bw*1000000)}'`
+				queue_length=`awk -v del=$delay -v tpt=$throughput 'BEGIN{print 8*(del-0.15)*tpt/(12000)}'`
+				if [[ `expr "$delay" : "\([0-9.]*\)"` != $delay ]]; then continue; fi
+				echo $bw $utilization $queue_length >>$resdir/graphdir/$protocol_long
+		done
+
+		printf "
+      set terminal svg fsize 14; set output '$resdir/graphdir/rtt-tpt.svg'
+      set xlabel 'Link Speed (Mbps)'; set ylabel 'Normalized Throughput'; 
+      plot " >$resdir/graphdir/rtt-tpt.gnuplot
+		printf "
+      set terminal svg fsize 14; set output '$resdir/graphdir/rtt-del.svg'
+      set xlabel 'Link Speed (Mbps)'; set ylabel 'Queue Length (pkts)'; 
+      plot " >$resdir/graphdir/rtt-del.gnuplot
+
+		for file in $resdir/graphdir/*; do
+				if [[ $file == *.gnuplot ]]; then continue; fi
+				nice_name=`expr "$file" : ".*/\([^/]*\)"`
+				sort -n $file >$file-tmp
+				mv $file-tmp $file
+				printf "'$file' using 1:(\$2) with lines title '$nice_name', ">>$resdir/graphdir/rtt-tpt.gnuplot
+				printf "'$file' using 1:(\$3) with lines title '$nice_name', ">>$resdir/graphdir/rtt-del.gnuplot
+		done
+
+		gnuplot -p $resdir/graphdir/rtt-tpt.gnuplot
+		gnuplot -p $resdir/graphdir/rtt-del.gnuplot
+
+		inkscape -e $resdir/graphdir/rtt-tpt.png -b fff $resdir/graphdir/rtt-tpt.svg
+		display $resdir/graphdir/rtt-tpt.png
+
+		inkscape -e $resdir/graphdir/rtt-del.png -b fff $resdir/graphdir/rtt-del.svg
+		display $resdir/graphdir/rtt-del.png
+
+
+else
+		echo "Unexpected command '$1'."
+		echo "Expected one of [run|graph]."
+fi
