@@ -1,0 +1,83 @@
+#!/bin/bash
+
+output_directory=SmallBuffers
+trace=~/traces/trace-32Mbps
+delay=25
+rat_file=rats/fig2-linkspeed/bigbertha2.dna.5
+
+export LD_LIBRARY_PATH=/home/venkat/Documents/Projects/Markovian/UDP/bin/pcc_sender
+
+if [[ $1 == "run" ]]; then
+		if [[ ! -d $output_directory ]]; then
+				mkdir $output_directory
+		fi
+
+		for buffer in 131072; do #8192 16384 65536 131072 32768; do
+				for delta_conf in bounded_delay_end:55; do # bounded_delay_end:100; do
+						run_str="./long-run.sh run markovian $trace $delay 0 $output_directory 1:continuous $buffer $delta_conf"
+						echo $run_str
+						$run_str
+						#if [[ -d markovian-$delta_conf::$buffer ]]; then
+						# 		trash markovian-$delta_conf::$buffer
+						# fi
+						# mv $output_directory/markovian-$delta_conf $output_directory/markovian-$delta_conf::$buffer
+						#mm-throughput-graph 100 $output_directory/markovian-$delta_conf::$buffer/markovian-$delta_conf.uplink >$output_directory/markovian-$delta_conf::$buffer/markovian-$delta_conf.tpt-graph 2>$output_directory/markovian-$delta_conf::$buffer/markovian-$delta_conf.stats
+				done
+
+				for tcp in remy; do #cubic pcc remy; do
+						run_str="./long-run.sh run $tcp $trace $delay 0 $output_directory 1:continuous $buffer $rat_file"
+						echo $run_str
+						# $run_str
+						# if [[ -d $output_directory/$tcp::$buffer ]]; then
+						# 		trash $output_directory/$tcp::$buffer
+						# fi
+						# mv $output_directory/$tcp $output_directory/$tcp::$buffer
+						# mm-throughput-graph 100 $output_directory/$tcp::$buffer/$tcp.uplink >$output_directory/$tcp::$buffer/$tcp.tpt-graph 2>$output_directory/$tcp::$buffer/$tcp.stats
+				done
+		done
+
+elif [[ $1 == "graph" ]]; then
+		if [[ -d $output_directory/graphdir ]]; then
+				trash $output_directory/graphdir
+		fi
+		mkdir $output_directory/graphdir
+
+		for dir in $output_directory/*; do
+				expt=`expr "$dir" : ".*/\([^/]*\)"`
+				tcp=`expr "$expt" : "\(.*\)::.*"`
+				buffer=`expr "$expt" : "$tcp::\(.*\)"`
+
+				tpt=`grep throughput $dir/$tcp.stats | awk -F ' ' '{print $3;}'`
+				del=`grep queueing\ delay $dir/$tcp.stats | awk -F ' ' '{print $6;}'`
+				echo "$buffer $tpt $del" >>$output_directory/graphdir/$tcp.dat
+		done
+
+		printf "
+    set terminal svg fsize 14; set output \"$output_directory/graphdir/buf-tpt.svg\";
+    set title \"Performance with small buffers\";
+    set yrange [0:];
+    set logscale x 2
+    plot " >$output_directory/graphdir/buf-tpt.gnuplot
+		printf "
+    set terminal svg fsize 14; set output \"$output_directory/graphdir/buf-tpt.svg\";
+    set title \"Performance with small buffers\";
+    set yrange [0:];
+    set logscale x 2
+    plot " >$output_directory/graphdir/buf-del.gnuplot
+		for file in $output_directory/graphdir/*.dat; do
+				sort -n $file >$file.sort
+				mv $file.sort $file
+				tcp=`expr "$file" : ".*/\([^/]*\)\.dat"`
+				printf "\"$file\" using 1:2 with lines title \"$tcp\", " >>$output_directory/graphdir/buf-tpt.gnuplot
+		done
+
+		gnuplot -p $output_directory/graphdir/buf-tpt.gnuplot
+		inkscape -e $output_directory/graphdir/buf-tpt.png -b '#ffffff' $output_directory/graphdir/buf-tpt.svg
+		display $output_directory/graphdir/buf-tpt.png
+
+elif [[ $1 == "clean" ]]; then
+		trash $output_directory
+
+else
+		echo "Unknown command '$1'. Expected [run|graph|clean]"
+fi
