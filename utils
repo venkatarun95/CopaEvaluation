@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Read genericcc output and fill in 'throughput' and 'delay'
+function read_genericcc_output {
+		file=$1
+		if [[ ! -f $file ]]; then
+				echo "File not found '$file'"
+				throughput=0
+				delay=0
+				return
+		fi
+
+		res=`awk -F ' ' 'BEGIN{f=0; tpt=0; del=0; n=0}
+        { if ($1 == "Throughput:") {
+            tpt += $2; f = 1; n += 1;
+          }
+          else if (f == 1) {
+            del += $3; f = 0;
+          }
+        }
+        END { print tpt/n, del/n; }' $file`
+		
+		throughput=`expr "$res" : "\([^ ]*\) .*"`
+		delay=`expr "$res" : ".* \(.*\)"`
+}
