@@ -11,8 +11,8 @@ HZ=100 # HZ value of kernel
 
 output_file_name() {
 		if [[ $cc_type == "markovian" ]]; then
-				of_dir=$output_directory/markovian-$delta_conf
-				of_name=$of_dir/markovian-$delta_conf
+				of_dir=$output_directory/markovian
+				of_name=$of_dir/markovian
 		elif [[ $cc_type == "remy" ]]; then
 				of_dir=$output_directory/remy # Not giving rat name as of now
 				of_name=$of_dir/remy
@@ -45,9 +45,9 @@ if [[ $1 == "run" ]]; then
     if tc qdisc show dev lo | grep -q tbf; then op_tbf=change; fi
     
     burst=`awk -v r=$link_rate -v hz=$HZ 'END{print 2*r*1e6/(hz*8)}' /dev/null`
-    sudo ifconfig lo mtu 1500 # Otherwise MTU is 100kbytes in local loopback, which can cause problems in tbf
-    sudo tc qdisc $op_netem dev lo root handle 1:1 netem delay $(echo $min_delay)ms limit 10000 loss $loss_rate
-    sudo tc qdisc $op_tbf   dev lo parent 1:1 handle 10: tbf rate $(echo $link_rate)mbit limit $queue_length burst $burst
+    sudo ifconfig lo mtu 1600 # Otherwise MTU is 100kbytes in local loopback, which can cause problems in tbf
+    sudo tc qdisc $op_netem dev lo root handle 1:1 netem delay $(echo $min_delay)ms loss $loss_rate
+    sudo tc qdisc $op_tbf   dev lo parent 1:1 handle 10: tbf rate $(echo $link_rate)mbit limit $queue_length burst $queue_length
 
     # Setup output files
 		output_file_name # sets of_name and of_dir
@@ -55,6 +55,9 @@ if [[ $1 == "run" ]]; then
 				mkdir $of_dir
 		fi
 
+    if [[ -f /tmp/long-run-qdisc.pcap ]]; then
+        rm /tmp/long-run-qdisc.pcap
+    fi
     tcpdump -w /tmp/long-run-qdisc.pcap -i lo -n &
 		if [[ $cc_type == "markovian" ]]; then
 				delta_conf=$9
