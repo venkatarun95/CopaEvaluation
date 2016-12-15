@@ -1,0 +1,7 @@
+# Temporary files
+*~
+*#*
+
+# No subdirectories are currently planned. Any subdirectory will be assumed to be output.
+*/
+
