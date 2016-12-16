@@ -23,3 +23,47 @@ function read_genericcc_output {
 		throughput=`expr "$res" : "\([^ ]*\) .*"`
 		delay=`expr "$res" : ".* \(.*\)"`
 }
+
+# Given tcptrace output file (with -lu flags), fills 'throughput' with
+# throughput in Mbits/s
+function read-tcptrace-output {
+    file=$1
+    if [[ ! -f $file ]]; then
+				echo "File not found '$file'"
+				throughput=0
+				delay=0
+				return
+		fi
+
+    tot_time=0
+    tot_tpt=0
+    tot_bytes=0
+    wall_time=-1
+    seconds=-1
+    while read line; do
+        wall_time_regex='trace file elapsed time\:[^0-9]*([0-9]*)\:([0-9]*)\:([0-9.]*)'
+        if [[ $line =~ $wall_time_regex ]]; then
+            if [[ ! $wall_time -eq -1 ]]; then
+                echo "Error: Wall clock time specified multiple times."
+                continue
+            fi
+            h=${BASH_REMATCH[1]}
+            m=${BASH_REMATCH[2]}
+            s=${BASH_REMATCH[3]}
+            wall_time=`awk -v h=$h -v m=$m -v s=$s 'END{print s + m*60 + h*60*60}' /dev/null`
+        fi
+        
+        tpt_udp_regex='[:space:]*data\ bytes\ sent[^0-9]*([0-9]*)[^0-9]*([0-9]*)'
+        if [[ $line =~ $tpt_udp_regex ]]; then
+            bytes=`awk -v a=${BASH_REMATCH[1]} -v b=${BASH_REMATCH[2]} 'END{print (a>b)?a:b}' /dev/null`
+            tot_bytes=`awk -v tot=$tot_bytes -v cur=$bytes 'END{print tot+cur}' /dev/null`
+        fi
+
+        tpt_tcp_regex='[:space:]*actual\ data\ bytes[^0-9]*([0-9]*)[^0-9]*([0-9]*)'
+        if [[ $line =~ $tpt_tcp_regex ]]; then
+            bytes=`awk -v a=${BASH_REMATCH[1]} -v b=${BASH_REMATCH[2]} 'END{print (a>b)?a:b}' /dev/null`
+            tot_bytes=`awk -v tot=$tot_bytes -v cur=$bytes 'END{print tot+cur}' /dev/null`
+        fi
+    done <$file
+    tpt=`awk -v time=$wall_time -v bytes=$tot_bytes 'END{print 1e-6*8*bytes/time}' /dev/null`
+}

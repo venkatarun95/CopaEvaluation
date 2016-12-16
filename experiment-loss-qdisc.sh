@@ -1,4 +1,5 @@
 #!/bin/bash
+. utils
 
 link_rate=12 # (mbps)
 min_delay=25 # Two way delay in ms
@@ -40,8 +41,7 @@ elif [[ $1 == "graph" ]]; then
 				loss_rate=`expr "$tcp_dir" : ".*::\([0-9.]*\)"`
 				
 				# Gather statistics
-        tpt=`grep throughput $tcp_dir/$tcp.pcap-trace | awk '{if ($2 > cur) cur=$2; if ($5 > cur) cur=$5;} END{print 1e-6*8*cur}'`
-				#throughput=`grep throughput $tcp_dir/$tcp.pcap-trace | awk -F ' ' '{print $3}'`
+        read-tcptrace-output $tcp_dir/$tcp.pcap-trace
 				echo $loss_rate $tpt >>$output_directory/graphdir/$tcp.dat
 		done
 
