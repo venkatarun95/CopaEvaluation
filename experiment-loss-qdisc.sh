@@ -8,6 +8,7 @@ output_directory=LossyLink
 nsrc=1
 on_duration=60000 # (ms)
 rat_file=../evaluations/rats/fig2-linkspeed/bigbertha-100x.dna.5
+delta_conf=auto
 
 if [[ ! -d $output_directory ]]; then
     mkdir $output_directory
@@ -23,7 +24,11 @@ if [[ $1 == "run" ]]; then
             if [[ -d $tcp_dir ]]; then
                 continue
             fi
-	    runstr="sudo ./long-run-qdisc.sh run $cc_type $link_rate $min_delay $loss_rate $output_directory $nsrc:continuous $queue_length $on_duration $rat_file"
+	    option=$rat_file
+	    if [[ $cc_type == "markovian" ]]; then
+		option=$delta_conf
+	    fi
+	    runstr="sudo ./long-run-qdisc.sh run $cc_type $link_rate $min_delay $loss_rate $output_directory $nsrc:continuous $queue_length $on_duration $option"
 	    echo $runstr
 	    $runstr
 	    mv $output_directory/$cc_type $tcp_dir
