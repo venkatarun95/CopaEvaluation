@@ -17,7 +17,7 @@ else
 		echo "Unidentified traffic_type. Control shouldn't reach here."
 fi
 
-export LD_LIBRARY_PATH=/home/venkat/Documents/Projects/Markovian/UDP/bin/pcc_sender
+export LD_LIBRARY_PATH=../pcc/sender/src/
 
 for (( i=0; $i < $nsrc; i++ )); do
 		echo "$run_str $i"
