@@ -5,7 +5,7 @@
 bin_dir=../bin
 receiver_ip="127.0.0.1"
 source_ip="127.0.0.1"
-on_duration=600000 # in ms
+on_duration=60000 # in ms
 off_duration=1 # in ms
 HZ=100 # HZ value of kernel
 
@@ -16,7 +16,7 @@ output_file_name() {
     elif [[ $cc_type == "remy" ]]; then
 	of_dir=$output_directory/remy # Not giving rat name as of now
 	of_name=$of_dir/remy
-    elif [[ $cc_type == "sprout" ]] || [ $cc_type == "pcc" ] || [[ $cc_type == "pcp" ]] || [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]]; then
+    elif [[ $cc_type == "sprout" ]] || [ $cc_type == "pcc" ] || [[ $cc_type == "pcp" ]] || [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]]; then
 	of_dir=$output_directory/$cc_type
 	of_name=$of_dir/$cc_type
     else
@@ -93,11 +93,11 @@ if [[ $1 == "run" ]]; then
 	./run-pcc-sender.sh "$bin_dir/pcp $receiver_ip 8745 1000000000 1 0.00001 1" $nsrc $traffic_type $run_time $on_duration $off_duration
 	> $of_name.stdout 2> $of_name.stderr
 
-    elif [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]]; then
+    elif [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]]; then
 	echo "Assuming 'iperf -s' was run at $receiver_ip"
-	sudo sysctl -w net.ipv4.tcp_congestion_control=$cc_type
+	#sudo sysctl -w net.ipv4.tcp_congestion_control=$cc_type
 	#echo "Using default kernel TCP as root priviledges are required to change TCP"
-	./run-genericcc-sender.sh "$bin_dir/sender sourceip=$source_ip serverip=$receiver_ip cctype=kernel offduration=1 onduration=$run_time traffic_params=deterministic,num_cycles=1" $nsrc $traffic_type $run_time $on_duration $off_duration \
+	./run-iperf-sender.sh $receiver_ip $on_duration $cc_type $nsrc \
 				  1> $of_name.stdout 2> $of_name.stderr
 
     elif [[ $cc_type == "pcc" ]]; then

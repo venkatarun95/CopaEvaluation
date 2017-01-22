@@ -19,7 +19,7 @@ if [[ $1 == "run" ]]; then
 	loss_rate=`awk -v i=$i 'END{if(i < 5)print i * 0.2; else print (i-4) * 1.0}' /dev/null`
 	echo "Running on loss rate = $loss_rate"
 	
-	for cc_type in "markovian" "cubic" "reno" "pcc"; do
+	for cc_type in "vegas" "markovian" "cubic" "reno" "pcc"; do
             tcp_dir=$output_directory/$cc_type::$loss_rate
             if [[ -d $tcp_dir ]]; then
                 continue
