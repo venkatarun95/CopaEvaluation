@@ -1,13 +1,15 @@
 #!/bin/bash
 
+# Dependencies: tcpdump tcptrace python3 mahimahi
+
 #trace_dir=~/traces
 HZ=100 # HZ value of kernel
 bin_dir=../bin
-run_time=60000
+run_time=2000
 output_directory=TcpCompatibility
 
-qdisc_interface=lo:1
-receiver_ip=10.10.10.10 #127.0.0.1
+qdisc_interface=ens3
+receiver_ip=128.52.160.214 #127.0.0.1
 tcp_port=5010
 x_port=5011
 
@@ -49,11 +51,11 @@ if [[ ! -d $output_directory ]]; then
     mkdir $output_directory
 fi
 
-iperf -s -p $tcp_port &
-iperf -s -p $x_port &
-$bin_dir/receiver &
-export LD_LIBRARY_PATH=$bin_dir/pcc_receiver
-$bin_dir/appserver &
+# iperf -s -p $tcp_port &
+# iperf -s -p $x_port &
+# $bin_dir/receiver &
+# export LD_LIBRARY_PATH=$bin_dir/pcc_receiver
+# $bin_dir/appserver &
 
 for netid in {1..1}; do
     random_network
@@ -66,13 +68,13 @@ for netid in {1..1}; do
     mkdir $out_dir_net
 
     sleep 5 #give some rest time
-    for cong_alg in "pcc" "bbr"; do #"copa" "bbr" "cubic"; do
+    for cong_alg in "bbr" "cubic"; do # "bbr" "cubic"; do
         out_dir=$out_dir_net/$cong_alg
         mkdir $out_dir
         if [[ -f /tmp/long-run-qdisc.pcap ]]; then
             sudo rm /tmp/long-run-qdisc.pcap
         fi
-        sudo tcpdump -w /tmp/tcp-compatibility.pcap -i lo -n &
+        sudo tcpdump -w /tmp/tcp-compatibility.pcap -i $qdisc_interface -n &
 
         sender_pids=""
         # Run the TCPs
@@ -93,7 +95,7 @@ for netid in {1..1}; do
                 iperf -c $receiver_ip -p $x_port -t $run_time_s 1>$of_name.stdout 2>$of_name.stderr &
                 sender_pids="$sender_pids $!"
             elif [[ $cong_alg == "bbr" ]]; then
-                 mm-delay 0 "iperf -c $receiver_ip -p $x_port -t $run_time_s -Z bbr 1>$of_name.stdout 2>$of_name.stderr" &
+                 su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -p $x_port -t $run_time_s -Z bbr 1>$of_name.stdout 2>$of_name.stderr\" ingress &" ubuntu
                  sender_pids="$sender_pids $!"
             elif [[ $cong_alg == "pcc" ]]; then
                 export LD_LIBRARY_PATH=$bin_dir/pcc_sender
