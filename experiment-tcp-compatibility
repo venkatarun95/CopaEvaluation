@@ -3,10 +3,11 @@
 #trace_dir=~/traces
 HZ=100 # HZ value of kernel
 bin_dir=../bin
-run_time=30000
+run_time=60000
 output_directory=TcpCompatibility
 
-receiver_ip=127.0.0.1
+qdisc_interface=lo:1
+receiver_ip=10.10.10.10 #127.0.0.1
 tcp_port=5010
 x_port=5011
 
@@ -18,15 +19,16 @@ random_network() {
     num_x=$(( ( $RANDOM % 4 )  + 1 ))
     #rnd_trace=`cat /tmp/experiment-tcp-compatibility-traces | sort -R | head -n 1`
     # Half of RTT in ms
-    delay=$(( ( $RANDOM % 91 ) + 10 ))
+    delay=$(( ( $RANDOM % 49 ) + 1 ))
     # In Mbits/s
     #tpt=`expr "$rnd_trace" : '.*trace-\([0-9]*\)Mbps'`
-    tpt=$(( ( $RANDOM % 99 ) + 1 ))
+    tpt=$(( ( $RANDOM % 49) + 1 ))
     # In bytes
     bdp=`awk -v b=$tpt -v d=$delay 'BEGIN{print 2 * b * d * 1e3 / 8}'`
     # queue length = 0.5 * bdp * queue_2n_bdp
     queue_2n_bdp=$(( ( $RANDOM % 9 ) + 1 ))
     queue=`awk -v n_bdp=$queue_2n_bdp -v bdp=$bdp 'BEGIN{print bdp * n_bdp / 2}'`
+    loss=0
     echo $num_tcp $num_x $rnd_trace $delay $tpt $bdp $queue
 }
 
@@ -34,13 +36,13 @@ setup_qdisc() {
     # Uses the following variables: tpt (mbits/s), queue (bytes), HZ, loss
     op_netem=add
     op_tbf=add
-    if tc qdisc show dev lo | grep -q netem; then op_netem=change; fi
-    if tc qdisc show dev lo | grep -q tbf; then op_tbf=change; fi
+    if tc qdisc show dev $qdisc_interface | grep -q netem; then op_netem=change; fi
+    if tc qdisc show dev $qdisc_interface | grep -q tbf; then op_tbf=change; fi
 
     burst=`awk -v r=$tpt -v hz=$HZ 'END{print 2*r*1e6/(hz*8)}' /dev/null`
-    sudo ifconfig lo mtu 1600 # Otherwise MTU is 100kbytes in local loopback, which can cause problems in tbf
-    sudo tc qdisc $op_netem dev lo root handle 1:1 netem delay $(echo $delay)ms loss $loss
-    sudo tc qdisc $op_tbf   dev lo parent 1:1 handle 10: tbf rate $(echo $tpt)mbit limit $queue burst $queue
+    sudo ifconfig $qdisc_interface mtu 1600 # Otherwise MTU is 100kbytes in local loopback, which can cause problems in tbf
+    sudo tc qdisc $op_netem dev $qdisc_interface root handle 1:1 netem delay $(echo $delay)ms loss $loss
+    sudo tc qdisc $op_tbf   dev $qdisc_interface parent 1:1 handle 10: tbf rate $(echo $tpt)mbit limit $queue burst $queue
 }
 
 if [[ ! -d $output_directory ]]; then
@@ -49,50 +51,65 @@ fi
 
 iperf -s -p $tcp_port &
 iperf -s -p $x_port &
+$bin_dir/receiver &
+export LD_LIBRARY_PATH=$bin_dir/pcc_receiver
+$bin_dir/appserver &
 
-for i in {1..1}; do
+for netid in {1..1}; do
     random_network
     setup_qdisc
-
-    out_dir=net-$num_tcp-$num_x-$delay-$tpt-$queue
-    if [[ -d $out_dir ]]; then
+    out_dir_net=$output_directory/net-$num_tcp-$num_x-$delay-$tpt-$queue
+    if [[ -d $out_dir_net ]]; then
         echo "$out_dir already exists!"
         continue
     fi
-    mkdir $out_dir
+    mkdir $out_dir_net
 
-    if [[ -f /tmp/long-run-qdisc.pcap ]]; then
-        rm /tmp/long-run-qdisc.pcap
-    fi
-    sudo tcpdump -w /tmp/tcp-compatibility.pcap -i lo -n &
-
-    sender_pids=""
-    # Run the TCPs
-    for i in {1..$num_tcp}; do
-        of_name=$out_dir/tcp-$i
-        iperf -c $receiver_ip -p $tcp_port -t $run_time_s 1>$of_name.stdout 2>$of_name.stderr &
-        sender_pids="$sender_pids $!"
-    done
-
-    # Run the X congestion control
-    for cong_alg in "copa" "cubic"; do
-        if [[ $cong_alg == "copa" ]]; then
-            of_name=$out_dir/copa-$i
-            export MIN_RTT=10000000
-            $bin_dir/sender serverip=$receiver_ip traffic_params=deterministic,num_cycles=1 onduration=$run_time offduration=1 cctype=markovian delta_conf=do_ss:auto  1>$of_name.stdout 2>$of_name.stderr &
-            sender_pids="$sender_pids $!"
-        elif [[ $cong_alg == "cubic" ]]; then
-            of_name=$out_dir/cubic-$i
-            iperf -c $receiver_ip -p $x_port -t $run_time_s 1>$of_name.stdout 2>$of_name.stderr &
-            sender_pids="$sender_pids $!"
+    sleep 5 #give some rest time
+    for cong_alg in "pcc" "bbr"; do #"copa" "bbr" "cubic"; do
+        out_dir=$out_dir_net/$cong_alg
+        mkdir $out_dir
+        if [[ -f /tmp/long-run-qdisc.pcap ]]; then
+            sudo rm /tmp/long-run-qdisc.pcap
         fi
-    done
+        sudo tcpdump -w /tmp/tcp-compatibility.pcap -i lo -n &
 
-    # Finish the run
-    sleep $run_time_s
-    sudo pkill tcpdump
-    sudo pkill tcpdump
-    tcptrace -lu /tmp/tcp-compatibility.pcap > $out_dir/pcap-trace
-    rm /tmp/tcp-compatibility.pcap
-    kill -9 $sender_pids
+        sender_pids=""
+        # Run the TCPs
+        for (( j=0; $j < $num_tcp; j++ )); do
+            of_name=$out_dir/tcp-$j
+            iperf -c $receiver_ip -p $tcp_port -t $run_time_s 1>$of_name.stdout 2>$of_name.stderr &
+            sender_pids="$sender_pids $!"
+        done
+
+        # Run the X congestion control
+        for (( j=0; $j < $num_x; j++ )); do
+            of_name=$out_dir/x-$j
+            if [[ $cong_alg == "copa" ]]; then
+                export MIN_RTT=10000000
+                $bin_dir/sender serverip=$receiver_ip traffic_params=deterministic,num_cycles=1 onduration=$run_time offduration=1 cctype=markovian delta_conf=auto  1>$of_name.stdout 2>$of_name.stderr &
+                sender_pids="$sender_pids $!"
+            elif [[ $cong_alg == "cubic" ]]; then
+                iperf -c $receiver_ip -p $x_port -t $run_time_s 1>$of_name.stdout 2>$of_name.stderr &
+                sender_pids="$sender_pids $!"
+            elif [[ $cong_alg == "bbr" ]]; then
+                 mm-delay 0 "iperf -c $receiver_ip -p $x_port -t $run_time_s -Z bbr 1>$of_name.stdout 2>$of_name.stderr" &
+                 sender_pids="$sender_pids $!"
+            elif [[ $cong_alg == "pcc" ]]; then
+                export LD_LIBRARY_PATH=$bin_dir/pcc_sender
+                $bin_dir/appclient $receiver_ip 9000
+                sender_pids="$sender_pids $!"
+            fi
+        done
+
+        sleep $run_time_s
+        echo "Finishing run"
+        sudo pkill tcpdump
+        sudo pkill tcpdump
+        kill -9 $sender_pids
+        tcptrace -lu /tmp/tcp-compatibility.pcap > $out_dir/pcap-trace
+        #tcptrace -G /tmp/tcp-compatibility.pcap --output-dir $out_dir
+        #exit
+        sudo rm /tmp/tcp-compatibility.pcap
+    done
 done
