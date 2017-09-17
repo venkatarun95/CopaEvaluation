@@ -16,7 +16,7 @@ output_file_name() {
     elif [[ $cc_type == "remy" ]]; then
 	of_dir=$output_directory/remy # Not giving rat name as of now
 	of_name=$of_dir/remy
-    elif [[ $cc_type == "sprout" ]] || [ $cc_type == "pcc" ] || [[ $cc_type == "pcp" ]] || [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]]; then
+    elif [[ $cc_type == "sprout" ]] || [ $cc_type == "pcc" ] || [[ $cc_type == "pcp" ]] || [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]] || [[ $cc_type == "bbr" ]]; then
 	of_dir=$output_directory/$cc_type
 	of_name=$of_dir/$cc_type
     else
@@ -43,11 +43,17 @@ if [[ $1 == "run" ]]; then
     op_tbf=add
     if tc qdisc show dev lo | grep -q netem; then op_netem=change; fi
     if tc qdisc show dev lo | grep -q tbf; then op_tbf=change; fi
+    # if tc qdisc show dev lo | grep -q fq; then
+    #     sudo tc qdisc del dev lo parent 10: handle 11: fq
+    # fi
     
     burst=`awk -v r=$link_rate -v hz=$HZ 'END{print 2*r*1e6/(hz*8)}' /dev/null`
     sudo ifconfig lo mtu 1600 # Otherwise MTU is 100kbytes in local loopback, which can cause problems in tbf
     sudo tc qdisc $op_netem dev lo root handle 1:1 netem delay $(echo $min_delay)ms loss $loss_rate
     sudo tc qdisc $op_tbf   dev lo parent 1:1 handle 10: tbf rate $(echo $link_rate)mbit limit $queue_length burst $queue_length
+    # if [[ $cc_type == "bbr" ]]; then
+    #     sudo tc qdisc add dev lo parent 10: handle 11: fq limit $queue_length flow_limit `expr $queue_length / 1000`
+    # fi
 
     # Setup output files
     output_file_name # sets of_name and of_dir
@@ -94,11 +100,17 @@ if [[ $1 == "run" ]]; then
 	> $of_name.stdout 2> $of_name.stderr
 
     elif [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]]; then
-	echo "Assuming 'iperf -s' was run at $receiver_ip"
+	      echo "Assuming 'iperf -s' was run at $receiver_ip"
 	#sudo sysctl -w net.ipv4.tcp_congestion_control=$cc_type
 	#echo "Using default kernel TCP as root priviledges are required to change TCP"
 	./run-iperf-sender.sh $receiver_ip $on_duration $cc_type $nsrc \
-				  1> $of_name.stdout 2> $of_name.stderr
+				                1> $of_name.stdout 2> $of_name.stderr
+
+    elif [[ $cc_type == "bbr" ]]; then
+        if [[ ! $nsrc -eq 1 ]]; then
+            echo "Support for multiple BBR flows not yet available"
+        fi
+        iperf -c $receiver_ip -t `expr $on_duration / 1000` -Z bbr > $of_name.stdout 2> $of_name.stderr
 
     elif [[ $cc_type == "pcc" ]]; then
 	echo "Assuming pcc receiver was run at $receiver_ip"

@@ -7,7 +7,7 @@ queue_length=`expr 2 \* $min_delay \* $link_rate \* 1000 / 8`
 output_directory=LossyLink
 nsrc=1
 on_duration=60000 # (ms)
-rat_file=../evaluations/rats/fig2-linkspeed/bigbertha-100x.dna.5
+rat_file=rats/fig2-linkspeed/bigbertha-100x.dna.5
 delta_conf=auto
 
 if [[ ! -d $output_directory ]]; then
@@ -19,7 +19,7 @@ if [[ $1 == "run" ]]; then
 	loss_rate=`awk -v i=$i 'END{if(i < 5)print i * 0.2; else print (i-4) * 1.0}' /dev/null`
 	echo "Running on loss rate = $loss_rate"
 	
-	for cc_type in "vegas" "markovian" "cubic" "reno" "pcc"; do
+	for cc_type in "vegas" "markovian" "cubic" "reno" "pcc"; do # "bbr"
             tcp_dir=$output_directory/$cc_type::$loss_rate
             if [[ -d $tcp_dir ]]; then
                 continue

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+run_str=$1
+interface=$2
+
+sudo tc qdisc add dev $interface root fq 2>/dev/null || true # Ignore error
+$run_str
+
