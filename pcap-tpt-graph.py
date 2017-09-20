@@ -1,8 +1,10 @@
 import dpkt
+import math
+import numpy as np
 import os
 import sys
 
-bucket_size=0.1 # in seconds
+bucket_size=0.3 # in seconds
 
 pcap = dpkt.pcap.Reader(open(sys.argv[1]))
 bucket_start = -1
@@ -12,7 +14,8 @@ for ts, buf in pcap:
     if bucket_start + bucket_size <= ts or bucket_start == -1:
         for x in bucket:
             bucket[x] /= ts - bucket_start
-        buckets[ts] = bucket
+        if bucket != []:
+            buckets[ts] = bucket
         tpts = [bucket[x] for x in bucket]
         if tpts != []:
             jain[ts] = sum(tpts) ** 2 / (len(tpts) * sum([x ** 2 for x in tpts]))
@@ -21,6 +24,8 @@ for ts, buf in pcap:
         bucket = {}
     eth = dpkt.ethernet.Ethernet(buf)
     #print(type(eth.data.data))
+    if type(eth.data) == str or	type(eth.data.data) == str:
+        continue
     if type(eth.data.data) != dpkt.tcp.TCP and type(eth.data.data) != dpkt.udp.UDP:
         continue
     #print(ts, eth.data.data.dport)
@@ -33,8 +38,10 @@ for ts, buf in pcap:
         bucket[eth.data.data.sport] += len(buf)
 
 tptfilename = sys.argv[1] + "-tpt.dat"
+tptpolyfilename = sys.argv[1] + "-tptpoly.dat"
 jainfilename = sys.argv[1] + "-jain.dat"
 tptfile = open(tptfilename, 'w')
+tptpolyfile = open(tptpolyfilename, 'w')
 jainfile = open(jainfilename, 'w')
 timestamps = [x for x in buckets]
 timestamps.sort()
@@ -50,6 +57,19 @@ for ts in timestamps:
             out += "0 "
     tptfile.write(out + "\n")
     jainfile.write(str(ts - start_time) + " " + str(jain[ts]) + "\n")
+
+for ts in timestamps:
+    tpts = [buckets[ts][x] for x in buckets[ts]]
+    pltpt = 8e-6 * (np.mean(tpts) + np.std(tpts))
+    if math.isnan(pltpt): continue
+    if pltpt < 0: pltpt = 0
+    tptpolyfile.write("%f %f\n" % (ts - start_time, pltpt))
+for ts in timestamps[::-1]:
+    tpts = [buckets[ts][x] for x in buckets[ts]]
+    pltpt = 8e-6 * (np.mean(tpts) - np.std(tpts))
+    if math.isnan(pltpt): continue
+    if pltpt < 0: pltpt = 0
+    tptpolyfile.write("%f %f\n" % (ts - start_time, pltpt))
 
 tptgnufilename = sys.argv[1] + "-tpt.gnuplot"
 tptgnufile = open(tptgnufilename, 'w')
