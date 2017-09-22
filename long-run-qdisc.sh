@@ -65,6 +65,7 @@ if [[ $1 == "run" ]]; then
         rm /tmp/long-run-qdisc.pcap
     fi
     tcpdump -w /tmp/long-run-qdisc.pcap -i lo -n &
+
     ping $receiver_ip > $of_name.ping &
     if [[ $cc_type == "markovian" ]]; then
 	echo "Assuming receiver is available at $receiver_ip"
@@ -108,9 +109,12 @@ if [[ $1 == "run" ]]; then
 
     elif [[ $cc_type == "bbr" ]]; then
         if [[ ! $nsrc -eq 1 ]]; then
-            echo "Support for multiple BBR flows not yet available"
+            echo "Warning: Support for multiple BBR flows imperfect."
         fi
-        iperf -c $receiver_ip -t `expr $on_duration / 1000` -Z bbr > $of_name.stdout 2> $of_name.stderr
+        for (( i=0; i < $nsrc; i++ )); do
+            iperf -c $receiver_ip -t `expr $on_duration / 1000` -Z bbr > $of_name.stdout 2> $of_name.stderr &
+        done
+        sleep `expr $on_duration + 1`
 
     elif [[ $cc_type == "pcc" ]]; then
 	echo "Assuming pcc receiver was run at $receiver_ip"

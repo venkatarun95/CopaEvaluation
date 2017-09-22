@@ -1,0 +1,85 @@
+#!/bin/bash
+. utils
+
+link_rate=42
+min_delay=400 # One way delay in ms
+loss_rate=0 #0.74
+output_directory=Satellite
+nsrc=2
+run_duration=100000
+#rat_file=../evaluations/rats/fig2-linkspeed/bigbertha-100x.dna.5
+#rat_file=../evaluations/rats/fig4-rtt/rtt_30x.dna.2
+rat_file=../bin/rats/fig2-linkspeed/bigbertha2.dna.5
+
+if [[ ! -d $output_directory ]]; then
+    mkdir $output_directory
+fi
+
+if [[ $1 == "run" ]]; then
+    for buffer in 420000000; do #4500 45000 420000 4200000; do
+	echo "Running on buffer size = $buffer bytes"
+	for cc_type in "bbr"; do # "markovian" "pcc" "cubic" "remy"; do
+	    if [[ -d $output_directory/$cc_type ]]; then
+		continue
+	    fi
+	    runstr="./long-run-qdisc.sh run $cc_type $link_rate $min_delay $loss_rate $output_directory $nsrc:continuous $buffer $run_duration $rat_file"
+	    echo $runstr
+	    $runstr
+	done
+    done
+
+elif [[ $1 == "graph" ]]; then
+    if [[ -d $output_directory/graphdir ]]; then
+	trash $output_directory/graphdir
+    fi
+    mkdir $output_directory/graphdir
+
+    for tcp_dir in $output_directory/*; do
+	tcp=`expr "$tcp_dir" : ".*/\([^/]*\)"`
+	read-tcptrace-output $tcp_dir/$tcp.pcap-trace
+	echo $tcp $tpt
+	# buffer=`expr "$tcp_dir" : ".*::\([0-9.]*\)"`
+	
+	# Gather statistics
+	# if [[ $tcp = * ]]; then
+	# 		./mm-throughput-graph 100 $tcp_dir/$tcp.uplink >$tcp_dir/$tcp.tpt-graph 2>$tcp_dir/$tcp.stats
+	# fi
+	# throughput=`grep throughput $tcp_dir/$tcp.stats | awk -F ' ' '{print $3}'`
+	# delay=`grep 95.*queueing $tcp_dir/$tcp.stats | awk -F ' ' '{print $6}'`
+	# echo $buffer $throughput $delay >>$output_directory/graphdir/$tcp.dat
+    done
+    exit
+
+    # Create gnuplot script
+    gnuplot_script_tpt="set xlabel 'Buffer Size (Bytes)'; set ylabel 'Throughput (Mbits/s)';
+    set terminal svg fsize 14; set output '$output_directory/graphdir/buff-tpt.svg'; 
+    set logscale xy 10;
+    plot " >>$output_directory/graphdir/loss-tpt.gnuplot
+    gnuplot_script_delay="set xlabel 'Buffer Size (Bytes)'; set ylabel 'Queuing Delay (ms)';
+    set terminal svg fsize 14; set output '$output_directory/graphdir/buff-del.svg';
+    set logscale xy 10;
+    plot " >>$output_directory/graphdir/loss-del.gnuplot
+    for tcp in $output_directory/graphdir/*.dat; do
+	tcp_nice=`expr "$tcp" : ".*/\([^/]*\).dat"`
+	echo $tcp $tcp_nice
+	gnuplot_script_tpt="$gnuplot_script_tpt '$tcp' using 1:2 title '$tcp_nice' with lines, "
+	gnuplot_script_delay="$gnuplot_script_delay '$tcp' using 1:3 title '$tcp_nice' with lines, "
+    done
+    echo $gnuplot_script_tpt >$output_directory/graphdir/buff-tpt.gnuplot
+    echo $gnuplot_script_delay >$output_directory/graphdir/buff-del.gnuplot
+    
+    gnuplot -p $output_directory/graphdir/buff-tpt.gnuplot
+    inkscape --export-png=$output_directory/graphdir/buff-tpt.png -b '#ffffff' -D $output_directory/graphdir/buff-tpt.svg
+    display $output_directory/graphdir/buff-tpt.png
+
+    gnuplot -p $output_directory/graphdir/buff-del.gnuplot
+    inkscape --export-png=$output_directory/graphdir/buff-del.png -b '#ffffff' -D $output_directory/graphdir/buff-del.svg
+    display $output_directory/graphdir/buff-del.png
+    
+elif [[ $1 == "clean" ]]; then
+    trash $output_directory
+
+else
+    echo "Unrecognized command '$1'."
+    echo "   Expected one of [run|graph|clean]"
+fi
