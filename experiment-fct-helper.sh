@@ -22,6 +22,6 @@ else
         sleep $offdurationsample
         onbytessample=`python -c "import random; print(int(random.expovariate(1.0 / $onbytes)))"`
         echo "On for $onbytessample bytes"
-        /usr/bin/time -f " $onbytessample %e" -a -o $outfile bash -c "head /dev/zero -c $onbytessample | nc $receiver_ip 8989"
+        /usr/bin/time -f "%e $onbytessample" -a -o $outfile bash -c "head /dev/zero -c $onbytessample | nc $receiver_ip 8989"
     done
 fi

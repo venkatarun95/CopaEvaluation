@@ -1,11 +1,11 @@
 #!/bin/bash
 
 output_directory=FCT
-num_on_off=2
-user=venkat
+num_on_off=10
+user=ubuntu
 
-if [[ $# != 2 ]] && [[ $1 == "run" ]]; then
-    echo "Usage: ./experiment-fct [run|graph] [receiver_ip]"
+if [[ $# != 3 ]] && [[ $1 == "run" ]]; then
+    echo "Usage: ./experiment-fct [run|graph] [receiver_ip] [tcp]"
     exit
 fi
 receiver_ip=$2
@@ -15,7 +15,8 @@ if [[ $1 == "run" ]]; then
         mkdir $output_directory
     fi
 
-    for tcp in "copa" "cubic" "bbr"; do
+    tcp=$3
+    #for tcp in "copa" "cubic" "bbr"; do
         if [[ -d $output_directory/$tcp ]]; then
             echo "Results for $tcp exist. Skipping"
             continue
@@ -37,7 +38,7 @@ if [[ $1 == "run" ]]; then
         done
         sleep 100
         pkill -9 $helper_pids
-    done
+    #done
 
 elif [[ $1 == "graph" ]]; then
     if [[ -d $output_directory/graphdir ]]; then 
@@ -60,11 +61,10 @@ elif [[ $1 == "graph" ]]; then
                     fct=`echo $p | grep '^\s*Completion time:\ ' | grep -o '[0-9.]*'`
                     if [[ ! -z "$fct" ]]; then
                         bytes=`awk "BEGIN{print($fct * $tpt)}"`
-                        echo " $bytes $fct" >>$output_directory/graphdir/$tcp.dat
+                        echo " $fct $bytes" >>$output_directory/graphdir/$tcp.dat
                         tpt=""
                         fct=""
                     fi
-                    echo $p
                 done < $file
             done
             cat $output_directory/graphdir/$tcp.dat | sort -n > /tmp/copa-sorted
