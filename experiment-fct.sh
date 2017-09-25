@@ -37,7 +37,8 @@ if [[ $1 == "run" ]]; then
             helper_pids="$helper_pids $!"
         done
         sleep 100
-        pkill -9 $helper_pids
+        #pkill -9 $helper_pids
+	sudo killall -9 experiment-fct-helper.sh
     #done
 
 elif [[ $1 == "graph" ]]; then
