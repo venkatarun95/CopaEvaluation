@@ -16,7 +16,7 @@ output_file_name() {
 		elif [[ $cc_type == "remy" ]]; then
 				of_dir=$output_directory/remy # Not giving rat name as of now
 				of_name=$of_dir/remy
-		elif [[ $cc_type == "sprout" ]] || [ $cc_type == "pcc" ] || [[ $cc_type == "pcp" ]] || [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]]; then
+		elif [[ $cc_type == "sprout" ]] || [ $cc_type == "pcc" ] || [[ $cc_type == "pcp" ]] || [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]] || [[ $cc_type == "bbr" ]]; then
 				of_dir=$output_directory/$cc_type
 				of_name=$of_dir/$cc_type
 		else
@@ -107,7 +107,7 @@ if [[ $1 == "run" ]]; then
 						./run-pcc-sender.sh "$bin_dir/pcp $receiver_ip 8745 1000000000 1 0.00001 1" $nsrc $traffic_type $run_time $on_duration $off_duration
 				    > $of_name.stdout 2> $of_name.stderr
 
-		elif [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]]; then
+		elif [[ $cc_type == "cubic" ]] || [[ $cc_type == "reno" ]] || [[ $cc_type == "vegas" ]] || [[ $cc_type == "bbr" ]]; then
 				echo "Assuming 'iperf -s' was run at $receiver_ip"
 				#sudo sysctl -w net.ipv4.tcp_congestion_control=$cc_type
 				#echo "Using default kernel TCP as root priviledges are required to change TCP"

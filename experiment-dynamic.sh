@@ -2,8 +2,8 @@
 
 num_flows=10
 output_directory=Dynamic
-interface=lo
-receiver_ip=127.0.0.1
+interface=ens3
+receiver_ip=128.52.179.220
 inter_flow_time=1 # In seconds
 bin=../bin
 HZ=100 # HZ value of kernel
@@ -28,7 +28,7 @@ if [[ $1 == "run" ]]; then
     sudo tc qdisc $op_netem dev $interface root handle 1:1 netem delay 10ms loss 0
     sudo tc qdisc $op_tbf   dev $interface parent 1:1 handle 10: tbf rate 100mbit limit 250000 burst 250000
 
-    for tcp in "copa" "cubic" "reno" "pcc"; do
+    for tcp in "copa" "cubic" "reno" "pcc" "bbr" "vegas"; do
         if [[ -f $output_directory/$tcp-pcap-trace ]]; then
             echo "File for $tcp already exists. Skipping"
             continue
@@ -38,12 +38,12 @@ if [[ $1 == "run" ]]; then
         sender_pids=""
         for (( i=0; i < $num_flows; i++ )); do
             onduration=`expr 2 \* $inter_flow_time \* \( $num_flows - $i - 1 \) + 1`
-            if [[ $tcp == "cubic" ]] || [[ $tcp == "reno" ]]; then
+            if [[ $tcp == "cubic" ]] || [[ $tcp == "reno" ]] || [[ $tcp == "vegas" ]]; then
                 iperf -c $receiver_ip -Z $tcp -t $onduration &
                 sender_pids="$sender_pids $!"
             elif [[ $tcp == "copa" ]]; then
                 export MIN_RTT=1000000000
-                $bin/sender cctype=markovian serverip=$receiver_ip offduration=0 traffic_params=deterministic,num_cycles=1 delta_conf=auto onduration=`expr $onduration \* 1000` >/dev/null &
+                $bin/sender cctype=markovian serverip=$receiver_ip offduration=0 traffic_params=deterministic,num_cycles=1 delta_conf=do_ss:auto:0.5 onduration=`expr $onduration \* 1000` >/dev/null &
                 sender_pids="$sender_pids $!"
                 echo `expr $onduration \* 1000`
             elif [[ $tcp == "pcc" ]]; then
@@ -73,7 +73,7 @@ if [[ $1 == "run" ]]; then
 
 elif [[ $1 == "graph" ]]; then
     for x in $output_directory/*-pcap-trace; do
-        if [[ ! -f $x-tpt.dat ]]; then
+        if [[ ! -f $x-tptpoly.dat ]]; then
             python pcap-tpt-graph.py $x
         fi
     done
@@ -89,7 +89,7 @@ set xrange [0:19]
 set yrange [1:100]
 set logscale y
 
-plot 'Dynamic/pcc-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'PCC', 'Dynamic/bbr-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'BBR', 'Dynamic/cubic-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'Cubic' lt 7, 'Dynamic/copa-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'Copa', 'Ideal' using 1:2 with lines lt -1 title "Ideal"
+plot 'Dynamic/pcc-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'PCC', 'Dynamic/bbr-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'BBR', 'Dynamic/vegas-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'Vegas' lt -1, 'Dynamic/cubic-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'Cubic' lt 7, 'Dynamic/copa-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'Copa', 'Ideal' using 1:2 with lines lt -1 title "Ideal"
 #plot 'Dynamic/cubic-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'Cubic' lt 7, 'Dynamic/copa-pcap-trace-tptpoly.dat' using 1:2 with filledcurves title 'Copa', 'Ideal' using 1:2 with lines lt -1 title "Ideal"
 EOM
     gnuplot -p $polyplot.gnuplot

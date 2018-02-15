@@ -114,7 +114,7 @@ if [[ $1 == "run" ]]; then
         for (( i=0; i < $nsrc; i++ )); do
             iperf -c $receiver_ip -t `expr $on_duration / 1000` -Z bbr > $of_name.stdout 2> $of_name.stderr &
         done
-        sleep `expr $on_duration + 1`
+        sleep `expr $on_duration / 1000 + 1`
 
     elif [[ $cc_type == "pcc" ]]; then
 	echo "Assuming pcc receiver was run at $receiver_ip"

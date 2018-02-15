@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 run_str=$1
@@ -17,7 +18,7 @@ else
 		echo "Unidentified traffic_type. Control shouldn't reach here."
 fi
 
-export LD_LIBRARY_PATH=../pcc/sender/src/
+export LD_LIBRARY_PATH=../bin/pcc_sender
 
 for (( i=0; $i < $nsrc; i++ )); do
 		echo "$run_str $i"

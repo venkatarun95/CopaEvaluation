@@ -9,7 +9,7 @@ run_time=60000
 output_directory=TcpCompatibility
 
 qdisc_interface=ens3
-receiver_ip=128.52.160.214 #127.0.0.1
+receiver_ip=128.52.179.220 #127.0.0.1
 tcp_port=5010
 x_port=5011
 
@@ -31,7 +31,7 @@ random_network() {
     queue_2n_bdp=$(( ( $RANDOM % 9 ) + 1 ))
     queue=`awk -v n_bdp=$queue_2n_bdp -v bdp=$bdp 'BEGIN{print bdp * n_bdp / 2}'`
     loss=0
-    echo $num_tcp $num_x $rnd_trace $delay $tpt $bdp $queue
+    echo TCP $num_tcp X $num_x Delay $delay Tpt $tpt BDP $bdp Queue $queue
 }
 
 setup_qdisc() {
@@ -68,7 +68,7 @@ for netid in {1..100}; do
     mkdir $out_dir_net
 
     sleep 5 #give some rest time
-    for cong_alg in "copa" "bbr" "pcc" "cubic"; do
+    for cong_alg in "copa" "reno" "bbr" "pcc" "cubic" "vegas"; do
         out_dir=$out_dir_net/$cong_alg
         mkdir $out_dir
         if [[ -f /tmp/long-run-qdisc.pcap ]]; then
@@ -80,7 +80,7 @@ for netid in {1..100}; do
         # Run the TCPs
         for (( j=0; $j < $num_tcp; j++ )); do
             of_name=$out_dir/tcp-$j
-            iperf -c $receiver_ip -p $tcp_port -t $run_time_s 1>$of_name.stdout 2>$of_name.stderr &
+            iperf -c $receiver_ip -p $tcp_port -t $run_time_s 1>$of_name.stdout -Z cubic 2>$of_name.stderr &
             sender_pids="$sender_pids $!"
         done
 
@@ -89,17 +89,17 @@ for netid in {1..100}; do
             of_name=$out_dir/x-$j
             if [[ $cong_alg == "copa" ]]; then
                 export MIN_RTT=10000000
-                $bin_dir/sender serverip=$receiver_ip traffic_params=deterministic,num_cycles=1 onduration=$run_time offduration=1 cctype=markovian delta_conf=auto  1>$of_name.stdout 2>$of_name.stderr &
+                $bin_dir/sender serverip=$receiver_ip traffic_params=deterministic,num_cycles=1 onduration=$run_time offduration=1 cctype=markovian delta_conf=do_ss:auto:0.5  1>$of_name.stdout 2>$of_name.stderr &
                 sender_pids="$sender_pids $!"
-            elif [[ $cong_alg == "cubic" ]]; then
-                iperf -c $receiver_ip -p $x_port -t $run_time_s 1>$of_name.stdout 2>$of_name.stderr &
+            elif [[ $cong_alg == "cubic" ]] || [[ $cong_alg == "vegas" ]] || [[ $cong_alg == "reno" ]]; then
+                iperf -c $receiver_ip -p $x_port -t $run_time_s -Z $cong_alg 1>$of_name.stdout 2>$of_name.stderr &
                 sender_pids="$sender_pids $!"
             elif [[ $cong_alg == "bbr" ]]; then
-                 su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -p $x_port -t $run_time_s -Z bbr 1>$of_name.stdout 2>$of_name.stderr\" ingress &" ubuntu
+                 su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -p $x_port -t $run_time_s -Z bbr \" ingress $ofname &" ubuntu
                  sender_pids="$sender_pids $!"
             elif [[ $cong_alg == "pcc" ]]; then
                 export LD_LIBRARY_PATH=$bin_dir/pcc_sender
-                $bin_dir/appclient $receiver_ip 9000 &
+                $bin_dir/appclient $receiver_ip 9000 1>$of_name.stdout 2>$of_name.stderr &
                 sender_pids="$sender_pids $!"
             fi
         done

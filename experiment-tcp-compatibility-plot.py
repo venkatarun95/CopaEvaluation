@@ -1,3 +1,4 @@
+
 import numpy as np
 import os
 import re
@@ -33,7 +34,7 @@ def parse_tcptrace(num_tcp, num_x, udp_x, filename):
             if mtch_address.group('port') not in ['8888', '9000'] and cur_conn['type'] == 'UDP':
                 continue
             assert('port' not in cur_conn or cur_conn['type'] == 'UDP')
-            if mtch_address.group('addr') not in ["128.52.160.214", "52-160-214.openstack.csail.mit.edu"]:
+            if mtch_address.group('addr') not in ["128.52.179.220", "52-179-220.openstack.csail.mit.edu"]:
                 print(mtch_address.group('addr'))
                 continue
             #assert(mtch_address.group('addr') == 'localhost')
@@ -84,6 +85,7 @@ def parse_experiment(dirname):
     mtch_dirname = re_dirname.match(dirname)
     num_tcp = int(mtch_dirname.group('num_tcp'))
     num_x = int(mtch_dirname.group('num_x'))
+    delay = int(mtch_dirname.group('delay'))
     tpt = float(mtch_dirname.group('tpt'))
     
     ideal_tpt = tpt / (num_tcp + num_x)
@@ -91,7 +93,7 @@ def parse_experiment(dirname):
     dirs = [f for f in os.listdir(dirname) if os.path.isdir(os.path.join(dirname, f))]
     res = {}
     for alg in dirs:
-        if alg not in ["copa", "pcc", "bbr", "cubic"]:
+        if alg not in ["copa", "pcc", "bbr", "cubic", "vegas", "reno"]:
             print("Unrecognized directory '%s'" % alg)
             continue
         if not os.path.isfile(os.path.join(dirname, alg, 'pcap-trace')):
@@ -101,6 +103,7 @@ def parse_experiment(dirname):
                                           num_x,
                                           alg in ["copa", "pcc"],
                                           os.path.join(dirname, alg, 'pcap-trace'))
+        print(alg, tcp_tpts, x_tpts)
         res[alg] = [x / ideal_tpt for x in x_tpts]
         res[alg + "-cubic"] = [x / ideal_tpt for x in tcp_tpts]
         # if alg == "copa":
@@ -128,7 +131,7 @@ if __name__ == "__main__":
                   res[alg].extend(parsed[alg])
     for x in res:
         res[x].sort()
-        #print(x, res[x])
+        print(x, res[x])
     for alg in res:
         print(alg,
               np.mean(res[alg]),
