@@ -4,7 +4,12 @@ import numpy as np
 import os
 import sys
 
-bucket_size=0.3 # in seconds
+bucket_size=0.1 # in seconds
+
+def num_flows(start, end):
+    mid = (start + end) / 2
+    if mid < 10:
+        return 0
 
 pcap = dpkt.pcap.Reader(open(sys.argv[1]))
 bucket_start = -1

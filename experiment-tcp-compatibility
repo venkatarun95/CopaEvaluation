@@ -5,7 +5,7 @@
 #trace_dir=~/traces
 HZ=100 # HZ value of kernel
 bin_dir=../bin
-run_time=60000
+run_time=10000
 output_directory=TcpCompatibility
 
 qdisc_interface=ens3

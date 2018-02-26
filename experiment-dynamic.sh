@@ -28,7 +28,7 @@ if [[ $1 == "run" ]]; then
     sudo tc qdisc $op_netem dev $interface root handle 1:1 netem delay 10ms loss 0
     sudo tc qdisc $op_tbf   dev $interface parent 1:1 handle 10: tbf rate 100mbit limit 250000 burst 250000
 
-    for tcp in "copa" "cubic" "reno" "pcc" "bbr" "vegas"; do
+    for tcp in "copa"; do # "cubic" "reno" "pcc" "bbr" "vegas"; do
         if [[ -f $output_directory/$tcp-pcap-trace ]]; then
             echo "File for $tcp already exists. Skipping"
             continue
@@ -73,9 +73,9 @@ if [[ $1 == "run" ]]; then
 
 elif [[ $1 == "graph" ]]; then
     for x in $output_directory/*-pcap-trace; do
-        if [[ ! -f $x-tptpoly.dat ]]; then
+        #if [[ ! -f $x-tptpoly.dat ]]; then
             python pcap-tpt-graph.py $x
-        fi
+        #fi
     done
     polyplot=$output_directory/dynamic-polyplot
     cat > $polyplot.gnuplot <<- EOM

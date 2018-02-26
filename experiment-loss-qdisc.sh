@@ -8,7 +8,7 @@ output_directory=LossyLink
 nsrc=1
 on_duration=60000 # (ms)
 rat_file=rats/fig2-linkspeed/bigbertha-100x.dna.5
-delta_conf=auto
+delta_conf=do_ss:auto:0.5
 
 if [[ ! -d $output_directory ]]; then
     mkdir $output_directory
@@ -19,11 +19,11 @@ if [[ $1 == "run" ]]; then
 	loss_rate=`awk -v i=$i 'END{if(i < 5)print i * 0.2; else print (i-4) * 1.0}' /dev/null`
 	echo "Running on loss rate = $loss_rate"
 	
-	for cc_type in "vegas" "markovian" "cubic" "reno" "pcc"; do # "bbr"
-            tcp_dir=$output_directory/$cc_type::$loss_rate
-            if [[ -d $tcp_dir ]]; then
-                continue
-            fi
+	for cc_type in "markovian" "pcc" "bbr"; do #"vegas" "markovian" "cubic" "reno" "pcc"; do
+      tcp_dir=$output_directory/$cc_type::$loss_rate
+      if [[ -d $tcp_dir ]]; then
+          continue
+      fi
 	    option=$rat_file
 	    if [[ $cc_type == "markovian" ]]; then
 		option=$delta_conf

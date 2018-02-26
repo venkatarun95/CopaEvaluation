@@ -17,16 +17,17 @@ if [[ $1 == "run" ]]; then
 		for buffer in 4200000; do #4500 45000 420000 4200000; do
 				echo "Running on buffer size = $buffer bytes"
 				for delta_conf in "bounded_delay_end:880" "bounded_delay_end:1600"; do #"constant_delta:0.1" "constant_delta:0.5" "constant_delta:1"; do
+				    continue
 						runstr="./long-run.sh run markovian $trace_file $min_delay $loss_rate $output_directory $nsrc:continuous $buffer $delta_conf"
 						echo $runstr
-						#$runstr
+						$runstr
 						#if [[ -d $output_directory/markovian-$delta_conf::$loss_rate ]]; then
 						#		trash $output_directory/markovian-$delta_conf::$buffer
 						#fi
 						#mv $output_directory/markovian-$delta_conf $output_directory/markovian-$delta_conf::$buffer
 				done
 				
-				for cc_type in "pcc"; do # "pcc" "cubic" "remy"; do
+				for cc_type in "bbr"; do # "pcc" "cubic" "remy"; do
 						runstr="./long-run.sh run $cc_type $trace_file $min_delay $loss_rate $output_directory $nsrc:continuous $buffer $rat_file"
 						echo $runstr
 						$runstr

@@ -1,4 +1,4 @@
-
+import math
 import numpy as np
 import os
 import re
@@ -56,7 +56,7 @@ def parse_tcptrace(num_tcp, num_x, udp_x, filename):
         if 'type' not in conn or 'port' not in conn or 'tpt' not in conn or 'elapsed_time' not in conn:
             #print("Incompletely extracted flow: '%s'" % conn)
             continue
-        if conn['elapsed_time'] < 40: continue
+        if conn['elapsed_time'] < 5: continue
         if conn['type'] == 'TCP' and conn['port'] == 5010:
             tcp_tpts += [conn['tpt']]
         elif conn['type'] == 'UDP' and udp_x:
@@ -87,7 +87,13 @@ def parse_experiment(dirname):
     num_x = int(mtch_dirname.group('num_x'))
     delay = int(mtch_dirname.group('delay'))
     tpt = float(mtch_dirname.group('tpt'))
-    
+    buf = float(mtch_dirname.group('buf'))
+    bdp = 2 * delay * tpt * 1e3 / 8
+
+    # if abs(buf / bdp - float(sys.argv[2])) > 0.1:
+    #     print bdp, buf, buf / bdp, tpt, delay
+    #     return {}
+
     ideal_tpt = tpt / (num_tcp + num_x)
 
     dirs = [f for f in os.listdir(dirname) if os.path.isdir(os.path.join(dirname, f))]
@@ -104,8 +110,13 @@ def parse_experiment(dirname):
                                           alg in ["copa", "pcc"],
                                           os.path.join(dirname, alg, 'pcap-trace'))
         print(alg, tcp_tpts, x_tpts)
+        if math.isnan(np.mean([x / ideal_tpt for x in x_tpts])) or math.isnan(np.mean([x / ideal_tpt for x in tcp_tpts])):
+            continue
+
         res[alg] = [x / ideal_tpt for x in x_tpts]
         res[alg + "-cubic"] = [x / ideal_tpt for x in tcp_tpts]
+        # res[alg] = [np.mean([x / ideal_tpt for x in x_tpts])]
+        # res[alg + "-cubic"] = [np.mean([x / ideal_tpt for x in tcp_tpts])]
         # if alg == "copa":
         #     print(os.path.join(dirname, alg, 'pcap-trace'), res[alg], res[alg+"-cubic"])
         #     print("=" * 15)
@@ -129,6 +140,7 @@ if __name__ == "__main__":
                   res[alg] = parsed[alg]
               else:
                   res[alg].extend(parsed[alg])
+    print res
     for x in res:
         res[x].sort()
         print(x, res[x])
