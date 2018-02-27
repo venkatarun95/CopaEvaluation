@@ -4,16 +4,12 @@ import numpy as np
 import os
 import sys
 
-bucket_size=0.1 # in seconds
-
-def num_flows(start, end):
-    mid = (start + end) / 2
-    if mid < 10:
-        return 0
+bucket_size=0.2 # in seconds
 
 pcap = dpkt.pcap.Reader(open(sys.argv[1]))
 bucket_start = -1
 buckets, bucket, jain = {}, {}, {}
+prev_bucket = []
 flows = {}
 for ts, buf in pcap:
     if bucket_start + bucket_size <= ts or bucket_start == -1:
@@ -22,9 +18,14 @@ for ts, buf in pcap:
         if bucket != []:
             buckets[ts] = bucket
         tpts = [bucket[x] for x in bucket]
-        if tpts != []:
-            jain[ts] = sum(tpts) ** 2 / (len(tpts) * sum([x ** 2 for x in tpts]))
-        else: jain[ts] = 0
+        if len(prev_bucket) != len(bucket):
+            # Ignore these border cases for jain index as they may be inaccurate
+            pass
+        else:
+            if tpts != []:
+                jain[ts] = sum(tpts) ** 2 / (len(tpts) * sum([x ** 2 for x in tpts]))
+            else: jain[ts] = 0
+        prev_bucket = bucket
         bucket_start = ts
         bucket = {}
     eth = dpkt.ethernet.Ethernet(buf)
@@ -61,7 +62,8 @@ for ts in timestamps:
         else:
             out += "0 "
     tptfile.write(out + "\n")
-    jainfile.write(str(ts - start_time) + " " + str(jain[ts]) + "\n")
+    if ts in jain:
+        jainfile.write(str(ts - start_time) + " " + str(jain[ts]) + "\n")
 
 for ts in timestamps:
     tpts = [buckets[ts][x] for x in buckets[ts]]

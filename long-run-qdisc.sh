@@ -112,7 +112,7 @@ if [[ $1 == "run" ]]; then
             echo "Warning: Support for multiple BBR flows imperfect."
         fi
         for (( i=0; i < $nsrc; i++ )); do
-            iperf -c $receiver_ip -t `expr $on_duration / 1000` -Z bbr > $of_name.stdout 2> $of_name.stderr &
+            su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -t `expr $on_duration / 1000` -Z bbr\" ingress /tmp/long-run0-log &" ubuntu
         done
         sleep `expr $on_duration / 1000 + 1`
 

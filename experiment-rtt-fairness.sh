@@ -40,7 +40,7 @@ EOF
             if [[ $interface == "lo" ]]; then
                 echo "Can't support bbr on lo because the fq will have to be global for all flows"
             fi
-            su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -t $onduration -Z bbr\" $interface &" ubuntu
+            su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -t $onduration -Z bbr\" ingress /tmp/rtt-fairness-$tcp &" ubuntu
         fi
     done
 else

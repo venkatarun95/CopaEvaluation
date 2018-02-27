@@ -2,8 +2,8 @@
 
 num_flows=10
 output_directory=Dynamic
-interface=ens3
-receiver_ip=128.52.179.220
+interface=eth0
+receiver_ip=34.227.114.168
 inter_flow_time=1 # In seconds
 bin=../bin
 HZ=100 # HZ value of kernel
@@ -28,7 +28,7 @@ if [[ $1 == "run" ]]; then
     sudo tc qdisc $op_netem dev $interface root handle 1:1 netem delay 10ms loss 0
     sudo tc qdisc $op_tbf   dev $interface parent 1:1 handle 10: tbf rate 100mbit limit 250000 burst 250000
 
-    for tcp in "copa"; do # "cubic" "reno" "pcc" "bbr" "vegas"; do
+    for tcp in "copa" "bbr" "cubic" "pcc"; do # "cubic" "reno" "pcc" "bbr" "vegas"; do
         if [[ -f $output_directory/$tcp-pcap-trace ]]; then
             echo "File for $tcp already exists. Skipping"
             continue
@@ -42,10 +42,10 @@ if [[ $1 == "run" ]]; then
                 iperf -c $receiver_ip -Z $tcp -t $onduration &
                 sender_pids="$sender_pids $!"
             elif [[ $tcp == "copa" ]]; then
-                export MIN_RTT=1000000000
-                $bin/sender cctype=markovian serverip=$receiver_ip offduration=0 traffic_params=deterministic,num_cycles=1 delta_conf=do_ss:auto:0.5 onduration=`expr $onduration \* 1000` >/dev/null &
+                #export MIN_RTT=1000000000
+                $bin/sender cctype=markovian serverip=$receiver_ip offduration=0 traffic_params=deterministic,num_cycles=1 delta_conf=do_ss:auto:0.5 onduration=`expr $onduration \* 1000`  &
                 sender_pids="$sender_pids $!"
-                echo `expr $onduration \* 1000`
+                #echo `expr $onduration \* 1000`
             elif [[ $tcp == "pcc" ]]; then
                 export LD_LIBRARY_PATH=$bin/pcc_sender
                 printf "`pwd`/$bin/appclient $receiver_ip 9000 & \nid=\$!\n sleep $onduration\n kill \$id" >/tmp/experiment-dynamic-run-pcc
@@ -55,7 +55,7 @@ if [[ $1 == "run" ]]; then
                 if [[ $interface == "lo" ]]; then
                     echo "Can't support bbr on lo because the fq will have to be global for all flows"
                 fi
-                su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -t $onduration -Z bbr\" $interface &" ubuntu
+                su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -t $onduration -Z bbr\" ingress /tmp/experiment-dynamic-bbr.log &" ubuntu
             fi
             sleep $inter_flow_time
         done

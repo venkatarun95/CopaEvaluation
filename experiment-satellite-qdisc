@@ -16,13 +16,13 @@ if [[ ! -d $output_directory ]]; then
 fi
 
 if [[ $1 == "run" ]]; then
-    for buffer in 420000000; do #4500 45000 420000 4200000; do
+    for buffer in 4200000; do #4500 45000 420000 4200000; do
 	echo "Running on buffer size = $buffer bytes"
-	for cc_type in "bbr"; do # "markovian" "pcc" "cubic" "remy"; do
+	for cc_type in "bbr" "markovian"; do # "pcc" "cubic" "remy"; do
 	    if [[ -d $output_directory/$cc_type ]]; then
 		continue
 	    fi
-	    runstr="./long-run-qdisc.sh run $cc_type $link_rate $min_delay $loss_rate $output_directory $nsrc:continuous $buffer $run_duration $rat_file"
+	    runstr="./long-run-qdisc.sh run $cc_type $link_rate $min_delay $loss_rate $output_directory $nsrc:continuous $buffer $run_duration do_ss:auto:0.5"
 	    echo $runstr
 	    $runstr
 	done

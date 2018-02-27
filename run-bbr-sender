@@ -5,5 +5,5 @@ interface=$2
 ofname=$3
 
 sudo tc qdisc add dev $interface root fq 2>/dev/null || true # Ignore error
-$run_str 1>$of_name.stdout 2>$of_name.stderr
+$run_str 1>$ofname.stdout 2>$ofname.stderr
 
