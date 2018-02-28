@@ -2,8 +2,8 @@
 
 num_flows=10
 output_directory=Dynamic
-interface=eth0
-receiver_ip=34.227.114.168
+interface=ingress
+receiver_ip=100.64.0.1
 inter_flow_time=1 # In seconds
 bin=../bin
 HZ=100 # HZ value of kernel
@@ -17,16 +17,16 @@ if [[ $1 == "run" ]]; then
     fi
 
     # Set up qdiscs
-    op_netem=add
-    op_tbf=add
-    if tc qdisc show dev $interface | grep -q netem; then op_netem=change; fi
-    if tc qdisc show dev $interface | grep -q tbf; then op_tbf=change; fi
+    # op_netem=add
+    # op_tbf=add
+    # if tc qdisc show dev $interface | grep -q netem; then op_netem=change; fi
+    # if tc qdisc show dev $interface | grep -q tbf; then op_tbf=change; fi
 
-    # Note: the variable r here is link rate in Mbits/s
-    burst=`awk -v r=100 -v hz=$HZ 'END{print 2*r*1e6/(hz*8)}' /dev/null`
-    sudo ifconfig $interface mtu 1600 # Otherwise MTU is 100kbytes in local loopback, which can cause problems in tbf
-    sudo tc qdisc $op_netem dev $interface root handle 1:1 netem delay 10ms loss 0
-    sudo tc qdisc $op_tbf   dev $interface parent 1:1 handle 10: tbf rate 100mbit limit 250000 burst 250000
+    # # Note: the variable r here is link rate in Mbits/s
+    # burst=`awk -v r=100 -v hz=$HZ 'END{print 2*r*1e6/(hz*8)}' /dev/null`
+    # sudo ifconfig $interface mtu 1600 # Otherwise MTU is 100kbytes in local loopback, which can cause problems in tbf
+    # sudo tc qdisc $op_netem dev $interface root handle 1:1 netem delay 10ms loss 0
+    # sudo tc qdisc $op_tbf   dev $interface parent 1:1 handle 10: tbf rate 100mbit limit 250000 burst 250000
 
     for tcp in "copa" "bbr" "cubic" "pcc"; do # "cubic" "reno" "pcc" "bbr" "vegas"; do
         if [[ -f $output_directory/$tcp-pcap-trace ]]; then
@@ -39,7 +39,7 @@ if [[ $1 == "run" ]]; then
         for (( i=0; i < $num_flows; i++ )); do
             onduration=`expr 2 \* $inter_flow_time \* \( $num_flows - $i - 1 \) + 1`
             if [[ $tcp == "cubic" ]] || [[ $tcp == "reno" ]] || [[ $tcp == "vegas" ]]; then
-                iperf -c $receiver_ip -Z $tcp -t $onduration &
+                iperf -c $receiver_ip -Z $tcp -t $onduration -p 5001 &
                 sender_pids="$sender_pids $!"
             elif [[ $tcp == "copa" ]]; then
                 #export MIN_RTT=1000000000
@@ -55,7 +55,9 @@ if [[ $1 == "run" ]]; then
                 if [[ $interface == "lo" ]]; then
                     echo "Can't support bbr on lo because the fq will have to be global for all flows"
                 fi
-                su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -t $onduration -Z bbr\" ingress /tmp/experiment-dynamic-bbr.log &" ubuntu
+                su -c "mm-delay 0 ./run-bbr-sender \"iperf -c $receiver_ip -t $onduration -Z bbr -p 5001 \" ingress /tmp/experiment-dynamic-bbr.log &" venkatar
+                #su -c "mm-delay 0 iperf -c 100.64.0.1" venkatar
+                #su -c "mm-delay 0 iperf -c $receiver_ip -t $onduration -Z bbr &" venkatar
             fi
             sleep $inter_flow_time
         done

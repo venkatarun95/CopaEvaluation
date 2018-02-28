@@ -4,7 +4,7 @@ import numpy as np
 import os
 import sys
 
-bucket_size=0.2 # in seconds
+bucket_size=0.1 # in seconds
 
 pcap = dpkt.pcap.Reader(open(sys.argv[1]))
 bucket_start = -1
@@ -29,7 +29,12 @@ for ts, buf in pcap:
         bucket_start = ts
         bucket = {}
     eth = dpkt.ethernet.Ethernet(buf)
-    #print(type(eth.data.data))
+    try:
+        ip = dpkt.ip.IP(buf)
+    except:
+        continue
+    eth.data = ip
+
     if type(eth.data) == str or	type(eth.data.data) == str:
         continue
     if type(eth.data.data) != dpkt.tcp.TCP and type(eth.data.data) != dpkt.udp.UDP:
@@ -78,6 +83,7 @@ for ts in timestamps[::-1]:
     if pltpt < 0: pltpt = 0
     tptpolyfile.write("%f %f\n" % (ts - start_time, pltpt))
 
+exit()
 tptgnufilename = sys.argv[1] + "-tpt.gnuplot"
 tptgnufile = open(tptgnufilename, 'w')
 tptgnufile.write("""
