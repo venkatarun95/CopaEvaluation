@@ -29,11 +29,11 @@ for ts, buf in pcap:
         bucket_start = ts
         bucket = {}
     eth = dpkt.ethernet.Ethernet(buf)
-    #try:
-    #    ip = dpkt.ip.IP(buf)
-    #except:
-    #    continue
-    #eth.data = ip
+    try:
+       ip = dpkt.ip.IP(buf)
+    except:
+       continue
+    eth.data = ip
 
     if type(eth.data) == str or	type(eth.data.data) == str:
         continue
