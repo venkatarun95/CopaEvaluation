@@ -6,7 +6,7 @@ import sys
 
 bucket_size=0.1 # in seconds
 
-pcap = dpkt.pcap.Reader(open(sys.argv[1]))
+pcap = dpkt.pcap.Reader(open(sys.argv[1], mode="rb"))
 bucket_start = -1
 buckets, bucket, jain = {}, {}, {}
 prev_bucket = []
@@ -30,9 +30,9 @@ for ts, buf in pcap:
         bucket = {}
     eth = dpkt.ethernet.Ethernet(buf)
     try:
-        ip = dpkt.ip.IP(buf)
+       ip = dpkt.ip.IP(buf)
     except:
-        continue
+       continue
     eth.data = ip
 
     if type(eth.data) == str or	type(eth.data.data) == str:
